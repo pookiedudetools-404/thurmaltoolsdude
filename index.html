@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080b0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="description" content="Pseudo-thermal camera visualiser - live thermal colour mapping from any webcam or phone camera.">
+<title>Thermal Vision — Auto Camera</title>
+
+<style>
+:root{
+  --bg:        #080b0e;
+  --panel:     #0b1116;
+  --panel-2:   #111a21;
+  --line:      #1a242d;
+  --line-soft: #16202a;
+  --txt:       #d8e3ea;
+  --dim:       #9fb3c1;
+  --dimmer:    #5f7686;
+  --hot:       #ff6b2c;
+  --cold:      #2ea8ff;
+  --ok:        #38d39f;
+  --warn:      #ffcc4d;
+  --err:       #ff5c5c;
+}
+
+*{ box-sizing:border-box; }
+
+html, body{
+  height:100%;
+  margin:0;
+}
+
+body{
+  background:#080b0e;
+  color:var(--txt);
+  font:14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+  text-rendering:optimizeLegibility;
+}
+
+#app{
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+  height:100dvh;
+  min-height:0;
+}
+
+#topbar{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 14px;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(#101820, #0b1116);
+  z-index:4;
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-width:0;
+}
+
+.logo{
+  flex:0 0 auto;
+  width:16px;
+  height:16px;
+  border-radius:50%;
+  background:conic-gradient(#ff3d00, #ffb300, #ffe082, #4fc3f7, #3949ab, #ff3d00);
+  box-shadow:0 0 12px rgba(255,120,40,.55);
+}
+
+.title{
+  font-weight:650;
+  letter-spacing:.2px;
+  white-space:nowrap;
+}
+
+.tag{
+  font-size:11px;
+  color:#6f8493;
+  border:1px solid #22303b;
+  border-radius:999px;
+  padding:1px 8px;
+  white-space:nowrap;
+}
+
+.top-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.btn{
+  appearance:none;
+  -webkit-appearance:none;
+  border:1px solid #26343f;
+  background:#131c23;
+  color:#cfe0ea;
+  padding:7px 12px;
+  border-radius:9px;
+  font:inherit;
+  font-size:13px;
+  cursor:pointer;
+  transition:background .15s, border-color .15s, transform .06s, color .15s;
+  white-space:nowrap;
+  user-select:none;
+}
+.btn:hover{ background:#1a2630; border-color:#33475a; }
+.btn:active{ transform:translateY(1px); }
+.btn:focus-visible{ outline:2px solid var(--cold); outline-offset:2px; }
+
+.btn.primary{
+  background:linear-gradient(#2ea8ff, #1e7fd0);
+  border-color:#3cb0ff;
+  color:#04131f;
+  font-weight:650;
+}
+.btn.primary:hover{ background:linear-gradient(#41b3ff, #2688d8); }
+
+.btn.on{
+  background:#1d3a2e;
+  border-color:var(--ok);
+  color:#9ff0cf;
+}
+
+.btn.big{
+  padding:12px 26px;
+  font-size:15px;
+  border-radius:12px;
+}
+
+.btn.wide{
+  width:100%;
+  margin-top:10px;
+}
+
+select{
+  width:100%;
+  appearance:none;
+  -webkit-appearance:none;
+  background:#111a21;
+  border:1px solid #22303b;
+  color:#cfe0ea;
+  padding:7px 10px;
+  border-radius:8px;
+  font:inherit;
+  font-size:13px;
+  cursor:pointer;
+}
+select:focus-visible{ outline:2px solid var(--cold); outline-offset:1px; }
+
+input[type=checkbox]{
+  width:16px;
+  height:16px;
+  accent-color:#2ea8ff;
+  cursor:pointer;
+  flex:0 0 auto;
+}
+
+input[type=range]{
+  appearance:none;
+  -webkit-appearance:none;
+  width:100%;
+  height:4px;
+  border-radius:99px;
+  background:linear-gradient(90deg, #2ea8ff, #ff6b2c);
+  outline:none;
+  cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:16px;
+  height:16px;
+  border-radius:50%;
+  background:#e9f4ff;
+  border:2px solid #1b2733;
+  box-shadow:0 1px 4px rgba(0,0,0,.6);
+}
+input[type=range]::-moz-range-thumb{
+  width:14px;
+  height:14px;
+  border-radius:50%;
+  background:#e9f4ff;
+  border:2px solid #1b2733;
+  box-shadow:0 1px 4px rgba(0,0,0,.6);
+}
+input[type=range]:focus-visible{ outline:2px solid var(--cold); outline-offset:4px; }
+
+main{
+  flex:1 1 auto;
+  display:flex;
+  min-height:0;
+  min-width:0;
+}
+
+#stage{
+  position:relative;
+  flex:1 1 auto;
+  min-width:0;
+  min-height:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:14px;
+  overflow:hidden;
+  background:radial-gradient(circle at 50% 45%, #101a22 0%, #080b0e 70%);
+}
+
+#viewport{
+  position:relative;
+  border-radius:14px;
+  overflow:hidden;
+  line-height:0;
+  background:#05070a;
+  box-shadow:0 0 0 1px #1d2a34, 0 18px 60px rgba(0,0,0,.65);
+}
+
+#canvas{
+  display:block;
+  width:100%;
+  height:100%;
+}
+
+#overlay{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  line-height:1.4;
+}
+
+.crosshair{
+  position:absolute;
+  width:26px;
+  height:26px;
+  margin:-13px 0 0 -13px;
+  border:1px solid rgba(255,255,255,.85);
+  border-radius:50%;
+  box-shadow:0 0 0 1px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.35);
+}
+.crosshair::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  margin:auto;
+  width:3px;
+  height:3px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 0 4px #000;
+}
+
+.hotspot{
+  position:absolute;
+  width:18px;
+  height:18px;
+  margin:-9px 0 0 -9px;
+  border-radius:50%;
+  border:2px solid #ff5a1f;
+  box-shadow:0 0 10px rgba(255,90,31,.9);
+  animation:hotpulse 1.6s ease-in-out infinite;
+}
+@keyframes hotpulse{
+  0%,100%{ transform:scale(1);   opacity:1; }
+  50%    { transform:scale(1.28); opacity:.72; }
+}
+
+.readout{
+  position:absolute;
+  padding:3px 7px;
+  border-radius:7px;
+  background:rgba(6,12,16,.84);
+  border:1px solid rgba(120,190,255,.35);
+  color:#eaf6ff;
+  font-size:12px;
+  font-weight:650;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+  transform:translate(14px, -50%);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+}
+
+.hud{
+  position:absolute;
+  left:10px;
+  bottom:10px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:6px 11px;
+  border-radius:10px;
+  background:rgba(5,9,12,.72);
+  border:1px solid rgba(255,255,255,.09);
+  font-size:12px;
+  color:var(--dim);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  font-variant-numeric:tabular-nums;
+}
+.hud b{ color:#e8f3fb; font-weight:650; }
+.hud .sep{ width:1px; height:12px; background:rgba(255,255,255,.14); }
+
+.freeze-badge{
+  position:absolute;
+  top:10px;
+  left:10px;
+  padding:4px 10px;
+  border-radius:999px;
+  background:rgba(255,204,77,.16);
+  border:1px solid var(--warn);
+  color:var(--warn);
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.08em;
+}
+
+#gate{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  padding:18px;
+  z-index:5;
+  background:radial-gradient(circle at 50% 40%, rgba(20,40,55,.94), rgba(4,7,10,.98));
+  transition:opacity .25s ease;
+}
+#gate[hidden]{ display:none; }
+#gate.fade{ opacity:0; pointer-events:none; }
+
+.gate-card{
+  max-width:430px;
+  text-align:center;
+}
+.gate-card h1{
+  margin:0 0 10px;
+  font-size:22px;
+  letter-spacing:.3px;
+  font-weight:650;
+}
+.gate-card p{
+  margin:0 0 18px;
+  color:#8fa5b4;
+  font-size:13px;
+  line-height:1.55;
+}
+.gate-error{
+  color:#ff7b7b !important;
+  font-size:12.5px !important;
+  margin:14px 0 0 !important;
+}
+
+#panel{
+  flex:0 0 292px;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  border-left:1px solid var(--line);
+  background:var(--panel);
+  padding:12px 12px 40px;
+  -webkit-overflow-scrolling:touch;
+}
+
+.group{
+  padding:10px 0;
+  border-bottom:1px solid var(--line-soft);
+}
+.group:last-child{ border-bottom:0; }
+
+.group h2{
+  margin:0 0 9px;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+  color:var(--dimmer);
+  font-weight:700;
+}
+
+.row{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin-bottom:11px;
+}
+.row:last-child{ margin-bottom:0; }
+
+.row > span{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  font-size:12.5px;
+  color:var(--dim);
+}
+.row > span output{
+  color:#e8f3fb;
+  font-weight:650;
+  font-variant-numeric:tabular-nums;
+}
+
+.row.check{
+  flex-direction:row;
+  align-items:center;
+  gap:8px;
+}
+.row.check span{
+  font-size:12.5px;
+  color:var(--dim);
+}
+
+.legend-bar{
+  height:12px;
+  border-radius:6px;
+  border:1px solid rgba(255,255,255,.12);
+  background:linear-gradient(90deg, #000, #fff);
+}
+.legend-labels{
+  display:flex;
+  justify-content:space-between;
+  font-size:11.5px;
+  color:#7d8f9c;
+  margin-top:5px;
+  font-variant-numeric:tabular-nums;
+}
+.note{
+  font-size:11.5px;
+  color:var(--dimmer);
+  margin:10px 0 0;
+  line-height:1.5;
+}
+
+#video{
+  position:fixed;
+  top:-10px;
+  left:-10px;
+  width:2px;
+  height:2px;
+  opacity:0;
+  pointer-events:none;
+  z-index:-1;
+}
+
+body.ui-hidden #topbar,
+body.ui-hidden #panel{ display:none; }
+body.ui-hidden #stage{ padding:0; }
+body.ui-hidden #viewport{ border-radius:0; box-shadow:none; }
+
+@media (max-width:860px){
+  main{ flex-direction:column; }
+  #stage{ padding:8px; }
+  #panel{
+    flex:0 0 auto;
+    max-height:42vh;
+    max-height:42dvh;
+    border-left:0;
+    border-top:1px solid var(--line);
+  }
+  .tag{ display:none; }
+  .hud{ font-size:11px; gap:8px; padding:5px 9px; }
+}
+
+@media (max-width:420px){
+  .title{ font-size:13px; }
+  .btn{ padding:6px 10px; font-size:12px; }
+}
+</style>
+</head>
+
+<body>
+
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <span class="title">Thermal&nbsp;Vision</span>
+      <span class="tag">auto camera</span>
+    </div>
+
+    <div class="top-actions">
+      <button id="btn-freeze"   class="btn" type="button" title="Freeze frame (F)">Freeze</button>
+      <button id="btn-snapshot" class="btn" type="button" title="Save PNG (S)">Snapshot</button>
+      <button id="btn-hide"     class="btn" type="button" title="Hide UI (H)">Hide UI</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="stage">
+      <div id="viewport">
+        <canvas id="canvas" width="320" height="240"></canvas>
+
+        <div id="overlay" aria-hidden="true">
+          <div id="crosshair" class="crosshair" hidden></div>
+          <div id="hotspot"   class="hotspot"   hidden></div>
+          <div id="readout"   class="readout"   hidden>--</div>
+          <div id="freeze-badge" class="freeze-badge" hidden>FROZEN</div>
+
+          <div id="hud" class="hud">
+            <span><b id="hud-fps">--</b> fps</span>
+            <span class="sep"></span>
+            <span>min <b id="hud-min">--</b></span>
+            <span>max <b id="hud-max">--</b></span>
+            <span>avg <b id="hud-avg">--</b></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="gate">
+        <div class="gate-card">
+          <h1>Thermal Vision</h1>
+          <p>
+            Live pseudo-thermal imaging from any camera. The colour map is generated
+            from scene brightness through an FLIR-style palette — it is a
+            <strong>visualisation</strong>, not a real thermometer.
+          </p>
+          <button id="btn-start" class="btn primary big" type="button">Start camera</button>
+          <p id="gate-error" class="gate-error" hidden></p>
+        </div>
+      </div>
+    </section>
+
+    <aside id="panel">
+      <div class="group">
+        <label class="row">
+          <span>Camera</span>
+          <select id="sel-camera">
+            <option value="">Default camera</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <span>Palette</span>
+          <select id="sel-colormap">
+            <option value="ironbow">Ironbow (FLIR)</option>
+            <option value="rainbow">Rainbow</option>
+            <option value="jet">Jet</option>
+            <option value="whitehot">White hot</option>
+            <option value="blackhot">Black hot</option>
+            <option value="arctic">Arctic</option>
+            <option value="lava">Lava</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <span>Processing size</span>
+          <select id="sel-resolution">
+            <option value="240x180">240 × 180 — fast</option>
+            <option value="320x240" selected>320 × 240 — balanced</option>
+            <option value="480x360">480 × 360 — sharp</option>
+            <option value="640x480">640 × 480 — max</option>
+          </select>
+        </label>
+
+        <label class="row check">
+          <input id="chk-mirror" type="checkbox">
+          <span>Mirror image</span>
+        </label>
+      </div>
+
+      <div class="group">
+        <h2>Temperature scale</h2>
+        <label class="row slider">
+          <span>Minimum <output id="out-tmin">15</output> °C</span>
+          <input id="rng-tmin" type="range" min="-20" max="120" step="1" value="15">
+        </label>
+        <label class="row slider">
+          <span>Maximum <output id="out-tmax">45</output> °C</span>
+          <input id="rng-tmax" type="range" min="-20" max="200" step="1" value="45">
+        </label>
+      </div>
+
+      <div class="group">
+        <h2>Image</h2>
+        <label class="row slider">
+          <span>Gamma <output id="out-gamma">1.00</output></span>
+          <input id="rng-gamma" type="range" min="0.4" max="2.5" step="0.05" value="1">
+        </label>
+        <label class="row slider">
+          <span>Blur <output id="out-blur">1</output></span>
+          <input id="rng-blur" type="range" min="0" max="3" step="1" value="1">
+        </label>
+        <label class="row slider">
+          <span>Smoothing <output id="out-smooth">0.55</output></span>
+          <input id="rng-smooth" type="range" min="0" max="0.95" step="0.05" value="0.55">
+        </label>
+      </div>
+
+      <div class="group">
+        <h2>Exposure</h2>
+        <label class="row check">
+          <input id="chk-autogain" type="checkbox" checked>
+          <span>Auto gain (adaptive contrast)</span>
+        </label>
+        <label class="row slider">
+          <span>Black point <output id="out-black">0.05</output></span>
+          <input id="rng-black" type="range" min="0" max="1" step="0.01" value="0.05">
+        </label>
+        <label class="row slider">
+          <span>White point <output id="out-white">0.95</output></span>
+          <input id="rng-white" type="range" min="0" max="1" step="0.01" value="0.95">
+        </label>
+        <button id="btn-reset" class="btn wide" type="button">Reset all settings</button>
+      </div>
+
+      <div class="group legend">
+        <h2>Palette scale</h2>
+        <div id="legend-bar" class="legend-bar"></div>
+        <div class="legend-labels">
+          <span id="legend-min">15 °C</span>
+          <span id="legend-max">45 °C</span>
+        </div>
+        <p class="note">
+          Pseudo-colour derived from luminance. Not a measurement device.
+        </p>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<video id="video" playsinline muted autoplay></video>
+
+<noscript>
+  <p style="padding:20px;color:#ff7b7b">JavaScript is required for Thermal Vision.</p>
+</noscript>
+
+<script src="thermal-engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
